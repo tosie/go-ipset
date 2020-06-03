@@ -217,17 +217,62 @@ func (s *IPSet) List() ([]string, error) {
 }
 
 // Returns a list of all defined ipset names.
-func ListAll() ([]string, error) {
+func ListAll() ([]IPSet, error) {
 	initCheck()
-	out, err := exec.Command(ipsetPath, "list", "-name").CombinedOutput()
+	out, err := exec.Command(ipsetPath, "list").CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("error listing all sets: %s (%s)", err, out)
 	}
 
-	sets := strings.Split(strings.TrimSpace(string(out)), "\n")
-	mapStrings(sets, strings.TrimSpace)
+	// Convert the command output to an array of strings.
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 
-	return sets, nil
+	// Trim all entries.
+	mapStrings(lines, strings.TrimSpace)
+
+	// Prepare the result.
+	result := []IPSet{}
+
+	// Walk through all entries to generate IPSets.
+	// Each line consists of a key and a value separated by ": ".
+	var tempIpSet IPSet
+	for _, line := range lines {
+		key, value := func() (string, string) {
+			x := strings.Split(line, ": ")
+			if len(x) == 2 {
+				return x[0], x[1]
+			} else {
+				return "", ""
+			}
+		}()
+
+		switch key {
+		case "Name":
+			// "Name: name-of-the-set"
+			// This is also the first key that should occur so we start to initialize out
+			// temp IPSet variable here.
+			tempIpSet = IPSet{Name: value}
+		case "Type":
+			// "Type: hash:ip"
+			tempIpSet.HashType = value
+		case "Header":
+			// "Header: family inet hashsize 1024 maxelem 65536 timeout 300"
+			// This is also the last key that should occur so we use this to
+			// finalize the IPSet struct.
+			params := strings.Split(value, " ")
+			tempIpSet.HashFamily = getParamsValueString(params, "family", "inet")
+			tempIpSet.HashSize = getParamsValueInt(params, "hashsize", 1024)
+			tempIpSet.MaxElem = getParamsValueInt(params, "maxelem", 65536)
+			tempIpSet.Timeout = getParamsValueInt(params, "timeout", 0)
+
+			// Only add this IPSet if it is of type "hash".
+			if strings.HasPrefix(tempIpSet.HashType, "hash:") {
+				result = append(result, tempIpSet)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // Destroy is used to destroy the set.
@@ -317,4 +362,24 @@ func mapStrings(vs []string, f func(string) string) []string {
 		vsm[i] = f(v)
 	}
 	return vsm
+}
+
+func getParamsValueString(params []string, name string, defaultValue string) string {
+	for index, value := range params {
+		if value == name && len(params) > (index+1) {
+			return params[index+1]
+		}
+	}
+
+	return defaultValue
+}
+
+func getParamsValueInt(params []string, name string, defaultValue int) int {
+	value := getParamsValueString(params, name, "")
+	intValue, err := strconv.Atoi(value)
+	if err == nil {
+		return intValue
+	} else {
+		return defaultValue
+	}
 }
