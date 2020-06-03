@@ -94,6 +94,6 @@ list := customers.List("customers")
 #### List all Sets
 
 ```go
-// list is []string
+// list is []IPSet
 list := ipset.ListAll()
 ```
