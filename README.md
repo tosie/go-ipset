@@ -4,6 +4,8 @@ This library is a simple GoLang wrapper to the IPtables ipset userspace utility.
 It provides an interface to allow Go programs to easily manipulate ipsets.
 It is currently limited to sets of `type hash`.
 
+This repository is based off https://github.com/aporeto-inc/go-ipset (go-mod branch).
+
 For ipset command documentation: http://ipset.netfilter.org/ipset.man.html
 
 go-ipset requires ipset kernel module and userspace utility version 6.0 or greater.
